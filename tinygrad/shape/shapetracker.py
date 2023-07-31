@@ -73,7 +73,7 @@ class View(ViewInternal):
       idxs = [Variable(f"idx{i}", 0, s-1) for i,s in enumerate(self.shape)]
     else:
       assert len(idxs) == len(self.shape), f"need an idx for all dimensions {idxs} vs {self.shape}"
-    return Variable.sum([Variable.num(self.offset)] + [idx*st for idx,sh,st in zip(idxs, self.shape, self.strides) if sh != 1 and st != 0])
+    return Variable.sum([Variable.num(self.offset)] + [idx*st for idx,st in zip(idxs, self.strides)])
 
 def idxs_to_idx(shape:Tuple[int, ...], idxs: List[Node]) -> Node:
   assert len(idxs) == len(shape), "need an idx for all dimensions"

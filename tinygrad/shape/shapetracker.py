@@ -46,7 +46,8 @@ class View(ViewInternal):
     return super().__new__(cls, shape, strides, offset, mask, contiguous, to_shape_strides(shape, strides))
   def __init__(self, shape, strides=None, offset=0, mask=None, contiguous=False, shape_strides=()): super().__init__()
 
-  def expr_node_mask(self, idx, valid=None) -> Node:
+  def expr_node_mask(self, idx:Optional[Node]=None, valid=None) -> Node:
+    if idx is None: idx = Variable('idx', 0, prod(self.shape)-1)
     expr = [valid] if valid is not None else []
     if self.mask is not None:
       acc = 1
@@ -57,7 +58,7 @@ class View(ViewInternal):
     return Variable.ands(expr)
 
   # generate an expression if you have a single idx variable
-  def expr_node(self, idx=None) -> Node:
+  def expr_node(self, idx:Optional[Node]=None) -> Node:
     if idx is None: idx = Variable('idx', 0, prod(self.shape)-1)
     ret: List[Node] = [Variable.num(self.offset)] if self.offset else []
     acc = 1
@@ -67,12 +68,14 @@ class View(ViewInternal):
     return Variable.sum(ret)
 
   # generate an expression if you have a variable or expression for each index
-  def expr_idxs(self, idxs) -> Node:
-    assert len(idxs) == len(self.shape), f"need an idx for all dimensions {idxs} vs {self.shape}"
+  def expr_idxs(self, idxs:Optional[List[Node]]=None) -> Node:
+    if idxs is None: 
+      idxs = [Variable(f"idx{i}", 0, s-1) for i,s in enumerate(self.shape)]
+    else:
+      assert len(idxs) == len(self.shape), f"need an idx for all dimensions {idxs} vs {self.shape}"
     return Variable.sum([Variable.num(self.offset)] + [idx*st for idx,sh,st in zip(idxs, self.shape, self.strides) if sh != 1 and st != 0])
 
-@functools.lru_cache(maxsize=None)
-def idxs_to_idx(shape:Tuple[int, ...], idxs) -> Node:
+def idxs_to_idx(shape:Tuple[int, ...], idxs: List[Node]) -> Node:
   assert len(idxs) == len(shape), "need an idx for all dimensions"
   acc = 1
   ret = []
@@ -157,12 +160,12 @@ class ShapeTracker:
   def real_offset(self) -> int:
     real_offset, mask = self.expr_node(Variable('zero', 0, 0))
     assert real_offset.__class__ is NumNode, f"how is the offset not a number? {real_offset} {mask}"
-    return real_offset.b
+    return cast(int, real_offset.b)
 
   # NOTE: if a stride is not always valid, it will be None
   def real_strides(self, ignore_valid=False) -> Tuple[Optional[Union[Node, int]], ...]:
     if len(self.views) == 1 and self.views[-1].mask is None: return self.views[-1].strides
-    idxs = [Variable(f"idx{i}", 0, s-1) for i,s in enumerate(self.shape)]
+    idxs: List[Node] = [Variable(f"idx{i}", 0, s-1) for i,s in enumerate(self.shape)]
     idx, valid = self.expr_idxs(idxs)
     ret: List[Optional[Union[Node, int]]] = [None] * len(self.views[-1].shape)
     for this_dim in (idx.nodes if isinstance(idx, SumNode) else [idx]):
@@ -177,7 +180,7 @@ class ShapeTracker:
     return tuple(ret)
   def unit_stride_axes(self, ignore_valid=False) -> List[int]: return [i for i,st in enumerate(self.real_strides(ignore_valid)) if st == 1]
 
-  def _expr_idx(self, idx, valid):
+  def _expr_idx(self, idx, valid) -> Tuple[Node, Node]:
     for v in reversed(self.views[0:-1]):
       valid = v.expr_node_mask(idx, valid)
       idx = v.expr_node(idx)
@@ -191,14 +194,13 @@ class ShapeTracker:
         self.views = self.views[:-2] + [new_view]
         self.simplify()
 
-  def expr_idxs(self, idxs=None):
+  def expr_idxs(self, idxs:Optional[List[Node]]=None) -> Tuple[Node, Node]:
     if idxs is None: idxs = [Variable(f"idx{i}", 0, s-1) for i,s in enumerate(self.shape)]
-    idx = self.views[-1].expr_idxs(tuple(idxs))
-    valid = self.views[-1].expr_node_mask(idxs_to_idx(self.views[-1].shape, tuple(idxs)))
+    idx = self.views[-1].expr_idxs(idxs)
+    valid = self.views[-1].expr_node_mask(idxs_to_idx(self.shape, idxs))
     return self._expr_idx(idx, valid)
 
-  def expr_node(self, idx='idx'):
-    if idx.__class__ is str: idx = Variable(idx, 0, prod(self.shape)-1)
+  def expr_node(self, idx:Optional[Node]=None) -> Tuple[Node, Node]:
     return self._expr_idx(self.views[-1].expr_node(idx), self.views[-1].expr_node_mask(idx))
 
   def needs_valid(self) -> bool:

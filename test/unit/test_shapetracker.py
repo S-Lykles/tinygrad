@@ -137,7 +137,6 @@ class TestIndexExpressions2d(unittest.TestCase):
       numel = prod(shape)
       assert node_expr(self.default_idx(st.shape)) == st.expr_node()[0]
       assert node_expr(self.default_idx(st.shape)) == st.expr_node(None)[0]
-      assert node_expr(self.default_idx(st.shape)) == st.expr_node('idx')[0]
       self.check_bounds(node_expr(self.default_idx(st.shape)), offset, numel)
       for idx in [(0, numel-1), (7, 203), (2, 5), (0, 0), (numel, numel), (0, numel), (0, numel+1), (numel+100, numel+100)]:
         idx = Variable("idx", idx[0], idx[1])

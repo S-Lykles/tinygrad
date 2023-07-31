@@ -69,10 +69,7 @@ class View(ViewInternal):
 
   # generate an expression if you have a variable or expression for each index
   def expr_idxs(self, idxs:Optional[List[Node]]=None) -> Node:
-    if idxs is None: 
-      idxs = [Variable(f"idx{i}", 0, s-1) for i,s in enumerate(self.shape)]
-    else:
-      assert len(idxs) == len(self.shape), f"need an idx for all dimensions {idxs} vs {self.shape}"
+    if idxs is None: idxs = [Variable(f"idx{i}", 0, s-1) for i,s in enumerate(self.shape)]
     return Variable.sum([Variable.num(self.offset)] + [idx*st for idx,st in zip(idxs, self.strides)])
 
 def idxs_to_idx(shape:Tuple[int, ...], idxs: List[Node]) -> Node:

@@ -103,28 +103,38 @@ def merge_views(vm2:View, vm1:View) -> Optional[View]:
 
 @functools.lru_cache(maxsize=None)
 def _reshape(view: View, new_shape:Tuple[int, ...]) -> Tuple[View, bool]:
-  shape, mask, strides, offset = view.shape, view.mask, view.strides, view.offset
-  # check if this is adding or removing 1s (only)
-  # NOTE: this is optional, but removes most calls to (expensive!) merge_views (with mask, not optional)
-  if [x for x in shape if x != 1] == [x for x in new_shape if x != 1]:
-    new_strides: List[int] = [y for x,y in zip(shape, strides) if x != 1]
+  if view.contiguous or (view.shape == new_shape): return View(new_shape), False
+  if not view.mask:
+    strides, reverse_shape = [], reversed(new_shape)
+    # shape of shape_strides can only be 1 if view.shape consists only of 1's
+    if view.shape_strides[0][0] == 1: return View(new_shape, offset=view.offset), False
+    for d, s in reversed(view.shape_strides):
+      assert d != 1
+      acc, next_stride = 1, s
+      while acc < d:
+        next_dim = next(reverse_shape)
+        acc *= next_dim
+        strides.append(next_stride)
+        next_stride *= next_dim
+      if acc != d: break
+    else:
+      while len(strides) < len(new_shape): strides.append(0)
+      return View(new_shape, tuple(reversed(strides)), view.offset), False
+  # check if new_shape is adding or removing 1's only, currently the only reshaping that can be done with masks
+  elif [x for x in view.shape if x != 1] == [x for x in new_shape if x != 1]:
+    new_strides: List[int] = [y for x,y in zip(view.shape, view.strides) if x != 1]
     new_strides_tuple: Tuple[int, ...] = tuple([0 if x == 1 else new_strides.pop(0) for x in new_shape])
     new_mask_tuple = None
-    if mask:
-      for x,y in zip(shape, mask):
-        if x == 1 and y != (0, 1):
-          new_mask_tuple = ((0,0),) * len(new_shape)
-          break
-      else:
-        new_mask: List[Tuple[int, int]] = [y for x,y in zip(shape, mask) if x != 1]
-        new_mask_tuple = tuple([(0,1) if x == 1 else new_mask.pop(0) for x in new_shape])
-    return View(new_shape, new_strides_tuple, offset, new_mask_tuple), False
-
-  new_view = View(new_shape)
-  if view.contiguous: return new_view, False # NOTE: if it's contiguous it can't have an offset
-  if (merged_view := merge_views(view, new_view)) is not None: return merged_view, False
+    for x,y in zip(view.shape, view.mask):
+      if x == 1 and y != (0, 1):
+        new_mask_tuple = ((0,0),) * len(new_shape)
+        break
+    else:
+      new_mask: List[Tuple[int, int]] = [y for x,y in zip(view.shape, view.mask) if x != 1]
+      new_mask_tuple = tuple([(0,1) if x == 1 else new_mask.pop(0) for x in new_shape])
+      return View(new_shape, new_strides_tuple, view.offset, new_mask_tuple), False
   if DEBUG >= 4: print(f"WARNING: creating new view with reshape {view} -> {new_shape}")
-  return new_view, True
+  return View(new_shape), True
 
 @functools.lru_cache(maxsize=None)
 def get_pad_args(shape:Tuple[int,...], arg:Tuple[Tuple[int, int], ...]):

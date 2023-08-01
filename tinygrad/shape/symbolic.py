@@ -3,7 +3,7 @@ from abc import abstractmethod
 import functools
 from math import gcd
 from tinygrad.helpers import partition
-from typing import List, Dict, Callable, Tuple, Type, Union, Optional, Any
+from typing import List, Dict, Callable, Tuple, Type, Union, Optional, Any, cast
 
 # NOTE: Python has different behavior for negative mod and floor div than c
 # symbolic matches the Python behavior, but the code output is agnostic, and will never have negative numbers in div or mod
@@ -104,7 +104,8 @@ class Node:
     for node in nodes:
       if node.__class__ not in (NumNode, SumNode): new_nodes.append(node)
       elif node.__class__ is NumNode: num_node_sum += node.b
-      else:  # SumNode
+      else:
+        node = cast(SumNode, node)
         for sub_node in node.flat_components:
           if sub_node.__class__ is NumNode: num_node_sum += sub_node.b
           else: new_nodes.append(sub_node)

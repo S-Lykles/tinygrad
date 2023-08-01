@@ -91,7 +91,7 @@ def strides_for_shape(shape:Tuple[int, ...]) -> Tuple[int, ...]:
 @functools.lru_cache(maxsize=None)
 def view_from_shape(shape:Tuple[Union[Node, int], ...]) -> View:
   assert all(is_sym_int(x) for x in shape)
-  return View(tuple(shape), strides_for_shape(shape))
+  return View(tuple(shape))
 
 @functools.lru_cache(maxsize=None)
 def merge_views(vm2:View, vm1:View) -> Optional[View]:
@@ -120,7 +120,7 @@ def _reshape(view: View, new_shape:Tuple[int, ...]) -> Tuple[View, bool]:
         new_mask_tuple = tuple([(0,1) if x == 1 else new_mask.pop(0) for x in new_shape])
     return View(new_shape, new_strides_tuple, offset, new_mask_tuple), False
 
-  new_view = View(new_shape, strides_for_shape(new_shape))
+  new_view = View(new_shape)
   if view.contiguous: return new_view, False # NOTE: if it's contiguous it can't have an offset
   if (merged_view := merge_views(view, new_view)) is not None: return merged_view, False
   if DEBUG >= 4: print(f"WARNING: creating new view with reshape {view} -> {new_shape}")

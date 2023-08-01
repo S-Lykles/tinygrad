@@ -153,7 +153,6 @@ class ShapeTracker:
   # this is the real size (ish)
   def size(self): return prod([s for s,st in zip(self.views[-1].shape, self.views[-1].strides) if st != 0])
 
-  # these are multiview strides, value is None if it's not a simple strided dimension
   # TODO: this can be shared code between simplify and merge_views
   def real_offset(self) -> int:
     real_offset, mask = self.expr_node(Variable('zero', 0, 0))

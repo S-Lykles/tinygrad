@@ -104,7 +104,7 @@ class Node:
     for node in nodes:
       if node.__class__ not in (NumNode, SumNode): new_nodes.append(node)
       elif node.__class__ is NumNode: num_node_sum += node.b
-      elif isinstance(node, SumNode):  # mypy wants the isinstance
+      else:  # SumNode
         for sub_node in node.flat_components:
           if sub_node.__class__ is NumNode: num_node_sum += sub_node.b
           else: new_nodes.append(sub_node)

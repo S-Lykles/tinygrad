@@ -72,7 +72,8 @@ class View(ViewInternal):
     if idxs is None: idxs = [Variable(f"idx{i}", 0, s-1) for i,s in enumerate(self.shape)]
     return Variable.sum([Variable.num(self.offset)] + [idx*st for idx,st in zip(idxs, self.strides)])
 
-def idxs_to_idx(shape:Tuple[int, ...], idxs: List[Node]) -> Node:
+@functools.lru_cache(maxsize=None)
+def idxs_to_idx(shape:Tuple[int, ...], idxs:Tuple[Node, ...]) -> Node:
   assert len(idxs) == len(shape), "need an idx for all dimensions"
   acc = 1
   ret = []
@@ -194,7 +195,7 @@ class ShapeTracker:
   def expr_idxs(self, idxs:Optional[List[Node]]=None) -> Tuple[Node, Node]:
     if idxs is None: idxs = [Variable(f"idx{i}", 0, s-1) for i,s in enumerate(self.shape)]
     idx = self.views[-1].expr_idxs(idxs)
-    valid = self.views[-1].expr_node_mask(idxs_to_idx(self.shape, idxs))
+    valid = self.views[-1].expr_node_mask(idxs_to_idx(self.shape, tuple(idxs)))
     return self._expr_idx(idx, valid)
 
   def expr_node(self, idx:Optional[Node]=None) -> Tuple[Node, Node]:

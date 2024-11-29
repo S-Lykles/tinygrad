@@ -148,7 +148,7 @@ def get_late_rewrite_patterns(ops, force_transcendental=False):
       div >> powers_of_two[const.arg] if const.arg in powers_of_two else None), # (x // (2**y)) -> shr(x,y)
     # (UPat.var("x")//UPat.cvar("d"),lambda x, d: fast_idiv(x.vmax, d.arg)(x) if 0<=x.vmin else None),
     # (UPat.var("x")//UPat.cvar("d"),lambda x, d: -fast_idiv(x.vmin, d.arg)(-x) if 0>=x.vmax else None),
-    (UPat.var("x")//UPat.cvar("d"),lambda x, d: (0<x).where(fast_idiv(x.vmax, d.arg)(x), -fast_idiv(x.vmin, d.arg)(-x))),
+    (UPat.var("x")//UPat.cvar("d"),lambda x, d: (0<=x).where(fast_idiv(x.vmax, d.arg)(x), -fast_idiv(x.vmin, d.arg)(-x))),
     (UPat.var("x")%UPat.cvar("d"),lambda x, d: x - d*fast_idiv(x.vmax, d.arg)(x) if 0<=x.vmin else None)]
   if Ops.NEG in ops:
     pat += [(UPat.var('x')*-1, lambda x: x.alu(Ops.NEG))]

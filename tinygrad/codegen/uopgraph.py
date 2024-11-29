@@ -117,6 +117,17 @@ def simplify_valid_load(buf:UOp, start_idx:UOp, valid:UOp) -> Optional[UOp]:
   new_valid = functools.reduce(operator.and_, ss) if (ss:=[s for s in split_uop(valid, Ops.AND) if s not in drop_stmt]) else None
   return buf.index(idx, new_valid)
 
+@functools.lru_cache(None)
+def fast_idiv(vmax:int, idiv:int):
+  # calculate m,s such that x//d == (x*m) >> s for all 0 <= x <= vmax, taken from Hacker's Delight, Chapter 10
+  nc = ((vmax+1)//(udiv:=abs(idiv)))*udiv - 1
+  nbits = vmax.bit_length()
+  for s in range(0, 2*nbits + 1):
+      if 2**s > nc*(udiv - 1 - (2**s - 1) % udiv):
+          m = (idiv/udiv)*(2**s + udiv - 1 - (2**s - 1) % udiv)//udiv
+          return lambda x: x*m >> s
+  assert False
+
 # ***** optional patterns *****
 
 powers_of_two = {2**i:i for i in range(64)}
@@ -134,7 +145,11 @@ def get_late_rewrite_patterns(ops, force_transcendental=False):
     (UPat(Ops.MUL, dtype=dtypes.ints, src=[UPat.cvar("const"), UPat.var("mul")]), lambda mul, const:
       mul << powers_of_two[const.arg] if const.arg in powers_of_two else None), # (x  * (2**y)) -> shl(x,y)
     (UPat(Ops.IDIV, src=(UPat.var("div"), UPat.cvar("const"))), lambda div, const:
-      div >> powers_of_two[const.arg] if const.arg in powers_of_two else None)] # (x // (2**y)) -> shr(x,y)
+      div >> powers_of_two[const.arg] if const.arg in powers_of_two else None), # (x // (2**y)) -> shr(x,y)
+    # (UPat.var("x")//UPat.cvar("d"),lambda x, d: fast_idiv(x.vmax, d.arg)(x) if 0<=x.vmin else None),
+    # (UPat.var("x")//UPat.cvar("d"),lambda x, d: -fast_idiv(x.vmin, d.arg)(-x) if 0>=x.vmax else None),
+    (UPat.var("x")//UPat.cvar("d"),lambda x, d: (0<x).where(fast_idiv(x.vmax, d.arg)(x), -fast_idiv(x.vmin, d.arg)(-x))),
+    (UPat.var("x")%UPat.cvar("d"),lambda x, d: x - d*fast_idiv(x.vmax, d.arg)(x) if 0<=x.vmin else None)]
   if Ops.NEG in ops:
     pat += [(UPat.var('x')*-1, lambda x: x.alu(Ops.NEG))]
     if Ops.SUB in ops: pat += [(UPat.var('x')+UPat.var('y').alu(Ops.NEG), lambda x,y: x.alu(Ops.SUB, y))]

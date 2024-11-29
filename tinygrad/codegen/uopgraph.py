@@ -123,9 +123,9 @@ def fast_idiv(vmax:int, idiv:int):
   nc = ((vmax+1)//(udiv:=abs(idiv)))*udiv - 1
   nbits = vmax.bit_length()
   for s in range(0, 2*nbits + 1):
-      if 2**s > nc*(udiv - 1 - (2**s - 1) % udiv):
-          m = (idiv/udiv)*(2**s + udiv - 1 - (2**s - 1) % udiv)//udiv
-          return lambda x: x*m >> s
+    if 2**s > nc*(udiv - 1 - (2**s - 1) % udiv):
+      m = (idiv/udiv)*(2**s + udiv - 1 - (2**s - 1) % udiv)//udiv
+      return lambda x: x*m >> s
   assert False
 
 # ***** optional patterns *****
@@ -146,9 +146,9 @@ def get_late_rewrite_patterns(ops, force_transcendental=False):
       mul << powers_of_two[const.arg] if const.arg in powers_of_two else None), # (x  * (2**y)) -> shl(x,y)
     (UPat(Ops.IDIV, src=(UPat.var("div"), UPat.cvar("const"))), lambda div, const:
       div >> powers_of_two[const.arg] if const.arg in powers_of_two else None), # (x // (2**y)) -> shr(x,y)
-    # (UPat.var("x")//UPat.cvar("d"),lambda x, d: fast_idiv(x.vmax, d.arg)(x) if 0<=x.vmin else None),
+    (UPat.var("x")//UPat.cvar("d"),lambda x, d: fast_idiv(x.vmax, d.arg)(x) if 0<=x.vmin else None),
     # (UPat.var("x")//UPat.cvar("d"),lambda x, d: -fast_idiv(x.vmin, d.arg)(-x) if 0>=x.vmax else None),
-    (UPat.var("x")//UPat.cvar("d"),lambda x, d: (0<=x).where(fast_idiv(x.vmax, d.arg)(x), -fast_idiv(x.vmin, d.arg)(-x))),
+    # (UPat.var("x")//UPat.cvar("d"),lambda x, d: (0<=x).where(fast_idiv(x.vmax, d.arg)(x), -fast_idiv(x.vmin, d.arg)(-x))),
     (UPat.var("x")%UPat.cvar("d"),lambda x, d: x - d*fast_idiv(x.vmax, d.arg)(x) if 0<=x.vmin else None)]
   if Ops.NEG in ops:
     pat += [(UPat.var('x')*-1, lambda x: x.alu(Ops.NEG))]

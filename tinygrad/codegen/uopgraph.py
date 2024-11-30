@@ -146,10 +146,10 @@ def get_late_rewrite_patterns(ops, force_transcendental=False):
       mul << powers_of_two[const.arg] if const.arg in powers_of_two else None), # (x  * (2**y)) -> shl(x,y)
     (UPat(Ops.IDIV, dtype=dtypes.ints, src=(UPat.var("div"), UPat.cvar("const"))), lambda div, const:
       div >> powers_of_two[const.arg] if const.arg in powers_of_two else None), # (x // (2**y)) -> shr(x,y)
-    (UPat.var("x", dtypes.ints)//UPat.cvar("d", dtypes.ints),lambda x, d: fast_idiv(x.vmax, d.arg)(x) if 0<=x.vmin else None),
+    (UPat.var("x", dtypes.ints)//UPat.cvar("d", dtypes.ints, vec=False),lambda x, d: fast_idiv(x.vmax, d.arg)(x) if 0<=x.vmin else None),
     # (UPat.var("x")//UPat.cvar("d"),lambda x, d: -fast_idiv(x.vmin, d.arg)(-x) if 0>=x.vmax else None),
     # (UPat.var("x")//UPat.cvar("d"),lambda x, d: (0<=x).where(fast_idiv(x.vmax, d.arg)(x), -fast_idiv(x.vmin, d.arg)(-x))),
-    (UPat.var("x", dtypes.ints)%UPat.cvar("d", dtypes.ints),lambda x, d: x - d*fast_idiv(x.vmax, d.arg)(x) if 0<=x.vmin else None)]
+    (UPat.var("x", dtypes.ints)%UPat.cvar("d", dtypes.ints, vec=False),lambda x, d: x - d*fast_idiv(x.vmax, d.arg)(x) if 0<=x.vmin else None)]
   if Ops.NEG in ops:
     pat += [(UPat.var('x')*-1, lambda x: x.alu(Ops.NEG))]
     if Ops.SUB in ops: pat += [(UPat.var('x')+UPat.var('y').alu(Ops.NEG), lambda x,y: x.alu(Ops.SUB, y))]

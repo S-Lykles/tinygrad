@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Optional, Tuple, Dict, List, TYPE_CHECKING, Any, DefaultDict, Callable, Set
 import functools, itertools, operator
 from collections import defaultdict
-from tinygrad.dtype import dtypes, ImageDType, PtrDType
+from tinygrad.dtype import dtypes, ImageDType, PtrDType, promo_lattice
 from tinygrad.ops import UOp, Ops, UPat, PatternMatcher, symbolic_flat, symbolic_simple
 from tinygrad.ops import graph_rewrite, split_uop, uop_given_valid, parse_valid, is_increasing, simplify_valid, GroupOp
 from tinygrad.helpers import DEBUG, getenv, flatten, dedup, TRANSCENDENTAL, AMX, prod, partition, all_same
@@ -118,17 +118,23 @@ def simplify_valid_load(buf:UOp, start_idx:UOp, valid:UOp) -> Optional[UOp]:
   return buf.index(idx, new_valid)
 
 @functools.lru_cache(None)
-def fast_idiv(vmax:int, d:int):
-  # calculate m,s such that x//d == (x*m) >> s for all 0 <= x <= vmax, adapted from Hacker's Delight, Chapter 10
-  ud = abs(d)  # we add the sign back later
-  nc = (vmax+1)//ud * ud - 1
+def magicgu(vmax:int, d:int) -> Tuple[int,int]:
+  # calculate m,s such that x//d == (x*m) >> s for all 0 <= x <= vmax, d>0; adapted from Hacker's Delight, Chapter 10
+  nc = (vmax+1)//(d) * d - 1
   nbits = vmax.bit_length()
   for s in range(0, 2*nbits + 1):
-    if 2**s > nc*(ud - 1 - (2**s - 1) % ud):
-      m = (d//ud) * (2**s + ud - 1 - (2**s - 1) % ud)//ud
-      if m.bit_length() + nbits > 32: return None
-      return lambda x: x*m >> s
+    if 2**s > nc*(d - 1 - (2**s - 1) % d):
+      m = (2**s + d - 1 - (2**s - 1) % d)//d
+      return m, s
   assert False
+
+def fast_idiv(x: UOp, d: int) -> Optional[UOp]:
+  assert d > 0
+  sign = (x < 0).where(x.const_like(-1*(d//abs(d))), d//abs(d))
+  m,s = magicgu((n:=max(abs(x.vmin), abs(x.vmax))), abs(d))
+  if abs(m * n) <= dtypes.max(x.dtype): return sign*((x*m) >> s)
+  if not dtypes.is_int((mul_dtype:=promo_lattice[x.dtype][-1])): return None
+  return sign*(((x.cast(mul_dtype)*m) >> s).cast(x.dtype))
 
 # ***** optional patterns *****
 
@@ -148,12 +154,8 @@ def get_late_rewrite_patterns(ops, force_transcendental=False):
       mul << powers_of_two[const.arg] if const.arg in powers_of_two else None), # (x  * (2**y)) -> shl(x,y)
     (UPat(Ops.IDIV, dtype=dtypes.ints, src=(UPat.var("div"), UPat.cvar("const"))), lambda div, const:
       div >> powers_of_two[const.arg] if const.arg in powers_of_two else None), # (x // (2**y)) -> shr(x,y)
-    (UPat.var("x", dtypes.ints)//UPat.cvar("d", dtypes.ints, vec=False), lambda x, d:
-        f(x) if (f:=fast_idiv(x.vmax, d.arg)) is not None and 0<=x.vmin else None),
-    # (UPat.var("x", dtypes.ints)//UPat.cvar("d", dtypes.ints, vec=False), lambda x, d:
-        #  f(x) if (f:=fast_idiv(max(abs(x.vmax), abs(x.vmin)), d.arg)) is not None else None),
-    (UPat.var("x", dtypes.ints)%UPat.cvar("d", dtypes.ints, vec=False), lambda x, d:
-        x - d*f(x) if (f:=fast_idiv(x.vmax, d.arg)) is not None and 0<=x.vmin else None)]
+    (UPat.var("x", dtypes.ints)//UPat.cvar("d", dtypes.ints, vec=False), lambda x, d: fast_idiv(x, d.arg)),
+    (UPat.var("x", dtypes.ints)%UPat.cvar("d", dtypes.ints, vec=False), lambda x, d: x - d*fast_idiv(x, d.arg))]
   if Ops.NEG in ops:
     pat += [(UPat.var('x')*-1, lambda x: x.alu(Ops.NEG))]
     if Ops.SUB in ops: pat += [(UPat.var('x')+UPat.var('y').alu(Ops.NEG), lambda x,y: x.alu(Ops.SUB, y))]

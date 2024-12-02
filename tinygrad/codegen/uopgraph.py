@@ -126,7 +126,7 @@ def fast_idiv(vmax:int, d:int):
   for s in range(0, 2*nbits + 1):
     if 2**s > nc*(ud - 1 - (2**s - 1) % ud):
       m = (d//ud) * (2**s + ud - 1 - (2**s - 1) % ud)//ud
-      if m.bit_length() + s > 32: return None
+      if m.bit_length() + nbits > 32: return None
       return lambda x: x*m >> s
   assert False
 

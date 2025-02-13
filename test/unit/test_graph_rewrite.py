@@ -291,11 +291,11 @@ class TestMulaccUnrolledAcc(unittest.TestCase):
     a = [UOp.variable(f'a{i}', float("-inf"), float("inf"), dtype=dtypes.float32) for i in range(4)]
     b = [UOp.variable(f'b{i}', float("-inf"), float("inf"), dtype=dtypes.float32) for i in range(4)]
 
-    expr = acc.assign(acc + (a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3]))
-    expr_with_mulacc = graph_rewrite(expr, mulacc_unrolled)
+    expr = acc + (a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3])
+    expr_with_mulacc = apply_rewrite(expr)
 
     # Verify it unrolls into individual multiply-accumulate operations
-    expected = acc.assign(acc + a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3])
+    expected = acc + a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3]
     self.assertIs(expr_with_mulacc, expected)
 
   def test_unrolled4_float_const(self):
@@ -303,11 +303,11 @@ class TestMulaccUnrolledAcc(unittest.TestCase):
     acc = UOp(Ops.DEFINE_ACC, dtypes.float32, (UOp.const(dtypes.int, 0),)+acc_range, (0,))
 
     a = [UOp.variable(f'a{i}', float("-inf"), float("inf"), dtype=dtypes.float32) for i in range(4)]
-    expr = acc.assign(acc + (a[0]*3.0 + a[1]*4.0 + a[2]*5.0 + a[3]*6.0))
-    expr_with_mulacc = graph_rewrite(expr, mulacc_unrolled)
+    expr = acc + (a[0]*3.0 + a[1]*4.0 + a[2]*5.0 + a[3]*6.0)
+    expr_with_mulacc = apply_rewrite(expr)
 
     # Verify it unrolls into individual multiply-accumulate operations
-    expected = acc.assign(acc + a[0]*3.0 + a[1]*4.0 + a[2]*5.0 + a[3]*6.0)
+    expected = acc + a[0]*3.0 + a[1]*4.0 + a[2]*5.0 + a[3]*6.0
     self.assertIs(expr_with_mulacc, expected)
 
 if __name__ == '__main__':

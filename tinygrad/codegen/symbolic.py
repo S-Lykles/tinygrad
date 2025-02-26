@@ -72,26 +72,25 @@ def split_uop(x:UOp, sep:Ops):
     for s in x.src: yield from split_uop(s, sep)
   else: yield x
 
-def fold_unrolled_divs(divs:UOp):
+def fold_unrolled_divs(chain: UOp, x: UOp, d: UOp, u: UOp|None, c: UOp|None=None) -> UOp|None:
   # div pattern in unrolled arange
-  # example: (x//4+(x+1)//4+(x+2)//4+(x+3)//4 -> x
-  add_chain, denominator, seen_const, ans = list(split_uop(divs, Ops.ADD)), None, [], None
-  for u in add_chain:
-    if not (u.op is Ops.IDIV and u.src[1].op is Ops.CONST): return None
-    if denominator is None: denominator = u.src[1].arg
-    if denominator != u.src[1].arg: return None
-    # assumed CONST is the last of an ADD
-    if (s0:=u.src[0]).op is Ops.ADD and s0.src[1].op is Ops.CONST and s0.src[1].op is Ops.CONST:
-      seen_const.append(s0.src[1].arg)
-      s0 = s0.src[0]
-    else: seen_const.append(0)
-    if ans is None: ans = s0
-    if ans is not s0: return None
-  if denominator is None: return None
-  # the first (denominator-len(seen_const)) terms may have been folded to 0 already
-  for i in range(denominator-len(seen_const)):
-    if ans is not None and 0 <= ans.vmin and ans.vmax + i < denominator: seen_const.append(i)
-  return ans if ans is not None and sorted(seen_const)==list(range(denominator)) else None
+  # example: x//4+(x+1)//4+(x+2)//4+(x+3)//4 -> x
+  if d.arg < 0: return None
+  if not (x.vmax<d.arg and x.vmin>=0):
+    if c is not None: return None
+    chain, u = chain.src if chain.op is Ops.ADD else (None, chain)
+
+  passed = []
+  first_c = max(d.arg-x.vmax, 1) if x.vmin>=0 else 1
+  for const in reversed(range(first_c, d.arg)):
+    next_expected = (x+const)//d
+    while u is not next_expected:
+      if u is not None: passed.append(u)
+      if chain is None: return None
+      chain, u = chain.src if chain.op is Ops.ADD else (None, chain)
+      if u.order < next_expected.order: return None
+    else: u = None
+  return functools.reduce(operator.add, [x, *passed] if chain is None else [chain, x, *passed])
 
 def lt_folding(x:UOp, c:int) -> UOp|None:
   p, np = partition(split_uop(x, Ops.ADD), lambda u: u.const_factor() == 1)
@@ -225,7 +224,8 @@ symbolic = symbolic_simple+PatternMatcher([
     lambda t,s: t.alu(op,s), heapq.merge(split_uop(a, op), split_uop(b, op), key=lambda u: u.order))) for op in GroupOp.CommAssoc),
   # *** rules from symbolic ***
   # unrolled arange div folding
-  (UPat(Ops.ADD, name="divs", src=[UPat(), UPat(Ops.IDIV)]), fold_unrolled_divs),
+  (UPat.var("chain")+((UPat.var("x")+UPat.cvar("c"))//UPat.cvar("d")).named("u"), fold_unrolled_divs),
+  (UPat.var("chain")+(UPat.var("x")//UPat.cvar("d")).named("u"), fold_unrolled_divs),
   # generic lt folding
   (UPat.var("x", dtypes.sints)<UPat.cvar("c", vec=False), lambda x,c: lt_folding(x, c.arg) if 0 < c.arg else None),
   # canonicalize a simplex with positive coefficients > 0

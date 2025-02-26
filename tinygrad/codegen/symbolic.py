@@ -223,7 +223,7 @@ symbolic = symbolic_simple+PatternMatcher([
   *((UPat(op, dtype=dtypes.int, src=(UPat(op, name="chain"), UPat(name="b"))),
     lambda chain,b: chain_insert(chain,b,chain.op) if b.order < chain.src[1].order else None) for op in GroupOp.CommAssoc),
   # merge two commutative+associative chains, generalization of (a+c)+(b+d) -> a+b+c+d
-  *((UPat(op, dtype=dtypes.int, src=(UPat(op, name='a'),UPat(op, name='b'))), lambda a,b,op=op: functools.reduce(
+  *((UPat(op, dtype=dtypes.int, src=(UPat(op, name='a'), UPat(op, name='b'))), lambda a,b,op=op: functools.reduce(
     lambda t,s: t.alu(op,s), heapq.merge(split_uop(a, op), split_uop(b, op), key=lambda u: u.order))) for op in GroupOp.CommAssoc),
   # *** rules from symbolic ***
   # unrolled arange div folding

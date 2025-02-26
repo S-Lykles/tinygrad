@@ -286,7 +286,7 @@ class UOp(MathTrait, metaclass=UOpMetaClass):
   def order(self:UOp) -> tuple:
     if self.op in GroupOp.ALU:
       const_srcs, srcs = partition(self.src, lambda x: x.op in (Ops.CONST, Ops.VCONST))
-      if len(srcs) == 1: return srcs[0].order + ((self.op.value, *[src.arg for src in const_srcs]),)
+      if len(srcs) == 1: return srcs[0].order + ((self.op.value, *[src.arg if isinstance(src.arg, tuple) else (src.arg,) for src in const_srcs]),)
     return (self.tuplize,)
 
   # *** uop shape stuff ***

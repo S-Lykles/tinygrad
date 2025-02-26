@@ -72,16 +72,19 @@ def split_uop(x:UOp, sep:Ops):
     for s in x.src: yield from split_uop(s, sep)
   else: yield x
 
-def fold_unrolled_divs(chain: UOp, x: UOp, d: UOp, u: UOp|None, c: UOp|None=None) -> UOp|None:
+def fold_unrolled_divs(chain, x: UOp, d: UOp, u, c: UOp|None=None) -> UOp|None:
   # div pattern in unrolled arange
   # example: x//4+(x+1)//4+(x+2)//4+(x+3)//4 -> x
   if d.arg < 0: return None
+  # the pattern will actually appear as (x+1)//4 + (x+2)//d + (x+3)//d + x//d because x//d is sorted last, so we look for x//d first
+  # the first d-x.vmax may have been folded already, so we wont have to look for them
   if not (x.vmax<d.arg and x.vmin>=0):
     if c is not None: return None
     chain, u = chain.src if chain.op is Ops.ADD else (None, chain)
 
   passed = []
   first_c = max(d.arg-x.vmax, 1) if x.vmin>=0 else 1
+  # we go down the chain from highest to lowest c and use the order to determine if we have passed (and therefore wont find) the next c
   for const in reversed(range(first_c, d.arg)):
     next_expected = (x+const)//d
     while u is not next_expected:

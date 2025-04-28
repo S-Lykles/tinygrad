@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import unittest, pickle
 
+from test.test_uop_graph import track_rewrites
 from tinygrad.dtype import dtypes, ConstType
 from tinygrad.codegen.linearize import linearize_uop
 from tinygrad.codegen.devectorizer import full_graph_rewrite, sym
@@ -333,7 +334,7 @@ class TestSymbolic(unittest.TestCase):
     self.helper_test_variable((Variable("a", 0, 5)+5)//4, 1, 2, "(((a+1)//4)+1)")
 
   def test_div_neg_rem(self):
-    self.helper_test_variable((-Variable("a", 0, 255)+256)//2, 0, 128, "(((a*-1)+256)//2)")
+    self.helper_test_variable((-Variable("a", 0, 255)+256)//2, 0, 128, "((((a+1)//2)*-1)+128)")
 
   def test_mul_div_factor_mul(self):
     self.helper_test_variable((Variable("a", 0, 10)*8)//4, 0, 20, "(a*2)")
@@ -487,6 +488,7 @@ class TestSymbolic(unittest.TestCase):
     unrolled_div = (gidx+2559)//2+(gidx+2560)//2+3
     self.helper_test_variable(unrolled_div, 2562, 5121, "(gidx+2562)")
 
+  @track_rewrites(named=True)
   def test_arange_unrolled2_neg(self):
     ridx = Variable("ridx", 0, 255)
     unrolled_div = -((255-ridx)//2) - ((256-ridx)//2)

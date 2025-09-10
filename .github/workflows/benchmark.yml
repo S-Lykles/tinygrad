@@ -155,6 +155,7 @@ jobs:
           train_cifar_bf16.txt
           train_cifar_wino.txt
     - name: Run process replay tests
+      if: always()
       run: cp test/external/process_replay/process_replay.py ./process_replay.py && git fetch origin master && git -c advice.detachedHead=false checkout origin/master && PYTHONPATH=. python3.11 process_replay.py
 
   testnvidiabenchmark:
@@ -269,6 +270,7 @@ jobs:
           gpt2_half.txt
           gpt2_half_beam.txt
     - name: Run process replay tests
+      if: always()
       run: cp test/external/process_replay/process_replay.py ./process_replay.py && git fetch origin master && git -c advice.detachedHead=false checkout origin/master && PYTHONPATH=. python3 process_replay.py
 
   testmorenvidiabenchmark:
@@ -341,6 +343,7 @@ jobs:
           train_resnet_one_gpu.txt
           train_bert.txt
     - name: Run process replay tests
+      if: always()
       run: cp test/external/process_replay/process_replay.py ./process_replay.py && git fetch origin master && git -c advice.detachedHead=false checkout origin/master && PYTHONPATH=. python3 process_replay.py
 
   testamdbenchmark:
@@ -471,6 +474,7 @@ jobs:
           sdxl.txt
           mixtral.txt
     - name: Run process replay tests
+      if: always()
       run: cp test/external/process_replay/process_replay.py ./process_replay.py && git fetch origin master && git -c advice.detachedHead=false checkout origin/master && PYTHONPATH=. python3 process_replay.py
 
   testmoreamdbenchmark:

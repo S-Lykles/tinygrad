@@ -343,19 +343,6 @@ def simplify_valid(valid:UOp) -> UOp|None:
     if ret[-1] is not stmt: something_changed = True
   return functools.reduce(operator.and_, ret) if something_changed else None
 
-# ******** phase 3 is the complete symbolic, and deals with very complex things like loop rewriting and threefry transform ********
-
-def reduce_mul_chain(r:UOp):
-  if r.arg not in {Ops.ADD, Ops.MAX}: return None
-  if r.dtype != r.src[0].dtype: return None
-  inside, outside = [], []
-  for m in r.src[0].split_uop(Ops.MUL):
-    m_parents = m.toposort()
-    if all(r not in m_parents for r in r.src[1:]) and (r.arg != Ops.MAX or m.vmin >= 0): outside.append(m)
-    else: inside.append(m)
-  if len(outside) == 0: return None
-  return r.replace(src=(prod(inside) if len(inside) else r.src[0].const_like(1),)+r.src[1:])*prod(outside)
-
 commutative = PatternMatcher([
   # ** COMMUTATIVE flipping (only for index) **
   # NOTE: this can break merging vector math by only flipping some of them
@@ -461,6 +448,19 @@ symbolic_flat = symbolic+PatternMatcher([
   # (x+y)*c -> x*c+y*c. only for int, float has inf*0=nan issue
   ((UPat.var("x", dtypes.index) + UPat.var("y")) * UPat.cvar("c"), lambda x,y,c: x*c+y*c),
 ])
+
+# ******** phase 3 is the complete symbolic, and deals with very complex things like loop rewriting and threefry transform ********
+
+def reduce_mul_chain(r:UOp):
+  if r.arg not in {Ops.ADD, Ops.MAX}: return None
+  if r.dtype != r.src[0].dtype: return None
+  inside, outside = [], []
+  for m in r.src[0].split_uop(Ops.MUL):
+    m_parents = m.toposort()
+    if all(r not in m_parents for r in r.src[1:]) and (r.arg != Ops.MAX or m.vmin >= 0): outside.append(m)
+    else: inside.append(m)
+  if len(outside) == 0: return None
+  return r.replace(src=(prod(inside) if len(inside) else r.src[0].const_like(1),)+r.src[1:])*prod(outside)
 
 # this is symbolic 2.0
 REMOVE_FROM_SINK = {Ops.SINK, Ops.UNROLL, Ops.PTRCAT, Ops.CAT, Ops.NOOP}
